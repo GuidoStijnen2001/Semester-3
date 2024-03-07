@@ -1,0 +1,34 @@
+$csvPath = 'C:\Users\Administrator\Documents\Employees\OffboardingEmployees.csv'
+
+$users = Import-Csv -Path $csvPath
+
+Import-Module ActiveDirectory
+
+foreach ($user in $users) {
+    if ($user.Voornaam -and $user.Achternaam) {
+        $userName = ($user.Voornaam.ToLower() + "." + $user.Achternaam.ToLower()).Trim('.')
+        $upn = $userName + "@DailyData.com"
+
+        # Disable the user account
+        Disable-ADAccount -Identity $userName
+
+        # Remove user from groups
+        $groups = Get-ADUser $userName | Get-ADPrincipalGroupMembership | Where-Object { $_.Name -ne "Domain Users" }
+        foreach ($group in $groups) {
+            Remove-ADGroupMember -Identity $group -Members $userName -Confirm:$false
+        }
+
+        # Move user to Offboarding OU
+        $ou = "OU=NonActief,OU=NL,DC=DailyData,DC=com"
+        $userDN = (Get-ADUser $userName).DistinguishedName
+        if ($userDN) {
+            Move-ADObject -Identity $userDN -TargetPath $ou -Confirm:$false
+            Write-Host "User $($user.Voornaam) $($user.Achternaam) has been offboarded."
+        } else {
+            Write-Host "User $($user.Voornaam) $($user.Achternaam) not found in Active Directory."
+        }
+    } else {
+        Write-Host "User object with incomplete data detected:"
+        Write-Host $user
+    }
+}
