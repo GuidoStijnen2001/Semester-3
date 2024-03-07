@@ -1,0 +1,40 @@
+$csvPath = 'C:\Users\Administrator\Documents\Employees\OnboardingEmployees.csv'
+
+$users = Import-Csv -Path $csvPath
+
+Import-Module ActiveDirectory
+
+foreach ($user in $users) {
+    $initialPassword = ConvertTo-SecureString -AsPlainText "Wachtwoord123!" -Force
+    $userName = $user.Voornaam.ToLower() + "." + $user.Achternaam.ToLower()
+    $upn = $userName + "@DailyData.com"
+
+    # Create the user without specifying an OU
+    $newUser = New-ADUser -Name ($user.Voornaam + " " + $user.Achternaam) -GivenName $user.Voornaam -Surname $user.Achternaam -SamAccountName $userName -UserPrincipalName $upn -AccountPassword $initialPassword -Enabled $true -ChangePasswordAtLogon $true -EmailAddress $user.Email -Title $user.Functie
+
+    
+
+    # Get the group object within the desired OU
+     $ou = switch ($user.Land) {
+        "NL" {
+            switch ($user.Functie) {
+                "WebDeveloper" { "OU=IT,OU=Employees,OU=NL,DC=DailyData,DC=com" }
+                "ServiceDesk" { "OU=HR,OU=Employees,OU=NL,DC=DailyData,DC=com" }
+                default { "OU=Users,DC=DailyData,DC=com" }
+            }
+        }
+        default { "OU=Users,OU=NL,DC=DailyData,DC=com" }
+    }
+    $group = Get-ADGroup -Filter "Name -eq '$($user.Functie)'" -SearchBase $ou
+
+    if ($group) {
+        Add-ADGroupMember -Identity $group -Members $userName
+    } else {
+        Write-Host "Group $($user.Functie) does not exist in the specified OU."
+    }
+   ## $linuxServer = "172.16.2.18"
+   ##$sshCommand = "ssh -v student@$linuxServer 'ansible-playbook /home/student/ansible/MakeVM.yml'"
+   ##Invoke-Expression -Command $sshCommand
+
+
+}
