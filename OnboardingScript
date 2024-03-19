@@ -32,9 +32,10 @@ foreach ($user in $users) {
     } else {
         Write-Host "Group $($user.Functie) does not exist in the specified OU."
     }
-   ## $linuxServer = "172.16.2.18"
-   ##$sshCommand = "ssh -v student@$linuxServer 'ansible-playbook /home/student/ansible/MakeVM.yml'"
-   ##Invoke-Expression -Command $sshCommand
+   $linuxServer = "172.16.2.18"
+   $sshCommand = "ssh  student@$linuxServer 'ansible-playbook /home/student/ansible/MakeVM.yml'"
+   Invoke-Expression -Command $sshCommand
 
 
 }
+
