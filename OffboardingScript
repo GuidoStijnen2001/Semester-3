@@ -1,37 +1,40 @@
-$csvPath = 'C:\Users\Administrator\Documents\Employees\OffboardingEmployees.csv'
+$csvPath = 'C:\Users\Administrator\Documents\Employees\OnboardingEmployees.csv'
 
 $users = Import-Csv -Path $csvPath
 
 Import-Module ActiveDirectory
 
 foreach ($user in $users) {
-    if ($user.Voornaam -and $user.Achternaam) {
-        $userName = ($user.Voornaam.ToLower() + "." + $user.Achternaam.ToLower()).Trim('.')
-        $upn = $userName + "@DailyData.com"
+    $initialPassword = ConvertTo-SecureString -AsPlainText "Wachtwoord123!" -Force
+    $userName = $user.Voornaam.ToLower() + "." + $user.Achternaam.ToLower()
+    $upn = $userName + "@DailyData.com"
 
-        # Disable the user account
-        Disable-ADAccount -Identity $userName
-
-        # Remove user from groups
-        $groups = Get-ADUser $userName | Get-ADPrincipalGroupMembership | Where-Object { $_.Name -ne "Domain Users" }
-        foreach ($group in $groups) {
-            Remove-ADGroupMember -Identity $group -Members $userName -Confirm:$false
+    # Determine the OU based on country and function
+    $ou = switch ($user.Land) {
+        "NL" {
+            switch ($user.Functie) {
+                "WebDeveloper" { "OU=IT,OU=Employees,OU=NL,DC=DailyData,DC=com" }
+                "ServiceDesk" { "OU=HR,OU=Employees,OU=NL,DC=DailyData,DC=com" }
+                default { "OU=Users,OU=NL,DC=DailyData,DC=com" }
+            }
         }
-
-        # Move user to Offboarding OU
-        $ou = "OU=NonActief,OU=NL,DC=DailyData,DC=com"
-        $userDN = (Get-ADUser $userName).DistinguishedName
-        if ($userDN) {
-            Move-ADObject -Identity $userDN -TargetPath $ou -Confirm:$false
-            Write-Host "User $($user.Voornaam) $($user.Achternaam) has been offboarded."
-        } else {
-            Write-Host "User $($user.Voornaam) $($user.Achternaam) not found in Active Directory."
-        }
-    } else {
-        Write-Host "User object with incomplete data detected:"
-        Write-Host $user
+        default { "OU=Users,OU=NL,DC=DailyData,DC=com" }
     }
- $linuxServer = "LINUX IP"
-   $sshCommand = "ssh  Username@$linuxServer 'ansible-playbook /home/student/ansible/DeleteVM.yml'"
-   Invoke-Expression -Command $sshCommand
+
+    # Create the user in the specified OU
+    $newUser = New-ADUser -Name ($user.Voornaam + " " + $user.Achternaam) -GivenName $user.Voornaam -Surname $user.Achternaam -SamAccountName $userName -UserPrincipalName $upn -AccountPassword $initialPassword -Enabled $true -EmailAddress $user.Email -Title $user.Functie -Path $ou
+
+    # Get the group object within the desired OU
+    $group = Get-ADGroup -Filter "Name -eq '$($user.Functie)'" -SearchBase $ou
+
+    if ($group) {
+        Add-ADGroupMember -Identity $group -Members $userName
+    } else {
+        Write-Host "Group $($user.Functie) does not exist in the specified OU."
+    }
+
+    # SSH command execution
+    $linuxServer = "LinuxServer"
+    $sshCommand = "ssh User@$linuxServer 'ansible-playbook /home/student/ansible/MakeVM.yml'"
+    Invoke-Expression -Command $sshCommand
 }
