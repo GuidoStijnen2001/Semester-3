@@ -31,4 +31,7 @@ foreach ($user in $users) {
         Write-Host "User object with incomplete data detected:"
         Write-Host $user
     }
+ $linuxServer = "LINUX IP"
+   $sshCommand = "ssh  Username@$linuxServer 'ansible-playbook /home/student/ansible/DeleteVM.yml'"
+   Invoke-Expression -Command $sshCommand
 }
